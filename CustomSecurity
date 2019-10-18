@@ -1,0 +1,132 @@
+If You are bored to using Framework security and pissed off to searching a lot about framework. 
+Just make your own custom security.
+All  Security Framework method like Webmatrix.websecurity in simple Memebership or AppUser object in asp.net identity make some security 
+around the session for cross page application making query around the webapplication. 
+By using HttpContext object we can make our own security methods which can be accessed .
+ here is the Code depicting that concept.
+Security Class can be accessed while Login and Accessing around the Controller in asp.net MVC 
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using UPPCL.Models;
+
+namespace UPPCL.CoreFeature
+{
+    public static class UserSecurity
+    {
+        public static void SetCustomerProfile(Profile profile)
+        {
+            HttpContext.Current.Session["CurrentProfile"] = profile;
+        }
+        public static Profile GetProfile()
+        {
+            Profile model = new Profile();
+            return HttpContext.Current.Session["CurrentProfile"] as Profile;
+        }
+
+        public static bool IsLogin()
+        {
+            Profile prf = HttpContext.Current.Session["CurrentProfile"] as Profile;
+            if (prf != null)
+            {
+                return true;
+            }
+            if (prf == null)
+            {
+                return false;
+            }
+            return false;
+        }
+
+        public static string GetUserName()
+        {
+            Profile prfData= HttpContext.Current.Session["CurrentProfile"] as Profile;
+           var userName= prfData.userName;
+            return userName;
+        }
+
+        public static String GetRole()
+        {
+
+            Profile prfData = HttpContext.Current.Session["CurrentProfile"] as Profile;
+            var userName = prfData.role;
+            return userName;
+        }
+
+        public static bool Logout()
+        {
+            HttpContext.Current.Session["CurrentProfile"] =null;
+            return true;
+        }
+        
+    }
+}
+
+#######################################################################################################################################
+                   Now Use Static Class during login and another controller query
+######################################################################################################################################           
+public class HomeController : Controller
+    {
+        IGenericRepository<Profile> _userProfile=null;
+        
+        public HomeController(IGenericRepository<Profile>_profileRepo)
+        {
+            _userProfile = _profileRepo;
+        }
+         [HttpGet]
+        public ActionResult Login()
+        {
+            var data = "";
+
+            return View();
+        }
+        [HttpPost]
+        public ActionResult Login(Profile model)
+        {
+            try
+            {
+                if (_userProfile.Records().Where(x => x.userName.Equals(model.userName) && x.Password.Equals(model.Password)).Any())
+                {
+                    //Set Customer Session
+                    var customerProfile = _userProfile.Records().Where(x => x.userName.Equals(model.userName) && x.Password.Equals(model.Password)).FirstOrDefault();
+                   UserSecurity.SetCustomerProfile(customerProfile);
+                    switch (UserSecurity.GetRole())
+                    {
+                        case "Admin":
+                            return RedirectToAction("Index","DashBoard",new { Area="Admin"});
+                        
+                        default:
+                            break;
+                    }
+                }
+
+            }
+            catch (Exception ex)
+            {
+                ModelState.AddModelError("","Something Went Wrong While Making Login");
+                return View();
+            }
+            
+            return View();
+        }
+    }
+
+Note in above code we used the concept for decoupling the code with Structure Map a Dependency Injection all the rest concept is same as the LINQ Query.
+
+#######################################################################################################################
+Now Just apply the above code in another controller if the object in httpcontext is null redirect to Login otherwise just make sure to further task
+#######################################################################################################################
+        [HttpGet]
+        public ActionResult Index()
+        {
+            if (UserSecurity.GetProfile() != null)
+            {
+                var records = _custRepo.Records().ToList();
+                return View(records);
+            }
+            else {
+                return RedirectToAction("Login","Home",new {Area="" });
+            }
+            
+        }
